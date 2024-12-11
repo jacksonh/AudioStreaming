@@ -15,7 +15,7 @@ final class AudioRendererContext {
 
     let bufferContext: BufferContext
 
-    let audioBuffer: AudioBuffer
+    var audioBuffer: AudioBuffer
     let inOutAudioBufferList: UnsafeMutablePointer<AudioBufferList>
 
     let packetsSemaphore = DispatchSemaphore(value: 0)

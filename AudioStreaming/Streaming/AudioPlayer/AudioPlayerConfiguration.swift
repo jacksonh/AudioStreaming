@@ -40,7 +40,7 @@ public struct AudioPlayerConfiguration: Equatable {
     /// - parameter enableLogs: Enables the internal logs
     ///
     public init(flushQueueOnSeek: Bool = true,
-                bufferSizeInSeconds: Double = 10,
+                bufferSizeInSeconds: Double = 500,
                 secondsRequiredToStartPlaying: Double = 1,
                 gracePeriodAfterSeekInSeconds: Double = 0.5,
                 secondsRequiredToStartPlayingAfterBufferUnderrun: Int = 1,

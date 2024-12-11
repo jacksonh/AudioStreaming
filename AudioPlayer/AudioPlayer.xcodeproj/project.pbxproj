@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		422C4A502D0885CB007CD908 /* short-counting-to-five.wav in Resources */ = {isa = PBXBuildFile; fileRef = 422C4A4F2D0885CB007CD908 /* short-counting-to-five.wav */; };
+		422C4A522D08862D007CD908 /* TestStreamAudioSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422C4A512D088621007CD908 /* TestStreamAudioSource.swift */; };
+		42A383612D0973550061BBA3 /* short-counting-to-five-02.wav in Resources */ = {isa = PBXBuildFile; fileRef = 42A383602D0973550061BBA3 /* short-counting-to-five-02.wav */; };
 		42BE42F52C9322AA00C0E448 /* CustomStreamSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42BE42F42C9322AA00C0E448 /* CustomStreamSource.swift */; };
 		9806E8182BC5D12500757370 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9806E8172BC5D12500757370 /* App.swift */; };
 		9806E81A2BC5D12500757370 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9806E8192BC5D12500757370 /* ContentView.swift */; };
@@ -48,6 +51,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		422C4A4F2D0885CB007CD908 /* short-counting-to-five.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "short-counting-to-five.wav"; sourceTree = "<group>"; };
+		422C4A512D088621007CD908 /* TestStreamAudioSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestStreamAudioSource.swift; sourceTree = "<group>"; };
+		42A383602D0973550061BBA3 /* short-counting-to-five-02.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "short-counting-to-five-02.wav"; sourceTree = "<group>"; };
 		42BE42F42C9322AA00C0E448 /* CustomStreamSource.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomStreamSource.swift; sourceTree = "<group>"; };
 		9806E8142BC5D12500757370 /* AudioPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9806E8172BC5D12500757370 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
@@ -168,6 +174,8 @@
 		9816A8B02BC832E100AD1299 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				42A383602D0973550061BBA3 /* short-counting-to-five-02.wav */,
+				422C4A4F2D0885CB007CD908 /* short-counting-to-five.wav */,
 				9816A8AE2BC832DB00AD1299 /* bensound-jazzyfrenchy.m4a */,
 				9816A8AF2BC832DC00AD1299 /* hipjazz.wav */,
 				9816A8AD2BC832DB00AD1299 /* bensound-jazzyfrenchy.mp3 */,
@@ -197,6 +205,7 @@
 		98E3921C2BD845E100B586E9 /* AudioPlayer */ = {
 			isa = PBXGroup;
 			children = (
+				422C4A512D088621007CD908 /* TestStreamAudioSource.swift */,
 				42BE42F42C9322AA00C0E448 /* CustomStreamSource.swift */,
 				9806E8302BC6927D00757370 /* AudioPlayerModel.swift */,
 				9806E8292BC68F8700757370 /* AudioPlayerView.swift */,
@@ -266,9 +275,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				9806E81F2BC5D12700757370 /* Preview Assets.xcassets in Resources */,
+				422C4A502D0885CB007CD908 /* short-counting-to-five.wav in Resources */,
 				9806E81C2BC5D12700757370 /* Assets.xcassets in Resources */,
 				9816A8B12BC8330C00AD1299 /* bensound-jazzyfrenchy.mp3 in Resources */,
 				9816A8B22BC8330C00AD1299 /* bensound-jazzyfrenchy.m4a in Resources */,
+				42A383612D0973550061BBA3 /* short-counting-to-five-02.wav in Resources */,
 				9816A8B32BC8330C00AD1299 /* hipjazz.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -293,6 +304,7 @@
 				98BFB41F2BCD814000E812C0 /* EqualizerService.swift in Sources */,
 				9816A8AA2BC7F4F000AD1299 /* AudioTrack.swift in Sources */,
 				9816A8BB2BC87BC200AD1299 /* AudioPlayerService.swift in Sources */,
+				422C4A522D08862D007CD908 /* TestStreamAudioSource.swift in Sources */,
 				984DE9572BDAFC7E004B427A /* AudioPlayerControlsView.swift in Sources */,
 				9806E8182BC5D12500757370 /* App.swift in Sources */,
 				42BE42F52C9322AA00C0E448 /* CustomStreamSource.swift in Sources */,
@@ -430,7 +442,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"AudioPlayer/Preview Content\"";
-				DEVELOPMENT_TEAM = TJ7GUC6B8Y;
+				DEVELOPMENT_TEAM = T7VZ8P7WPU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AudioPlayer/Info.plist;
@@ -445,7 +457,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.decimal.AudioPlayer;
+				PRODUCT_BUNDLE_IDENTIFIER = org.jacksonh.AudioPlayer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
@@ -463,7 +475,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"AudioPlayer/Preview Content\"";
-				DEVELOPMENT_TEAM = TJ7GUC6B8Y;
+				DEVELOPMENT_TEAM = T7VZ8P7WPU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AudioPlayer/Info.plist;
@@ -478,7 +490,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.decimal.AudioPlayer;
+				PRODUCT_BUNDLE_IDENTIFIER = org.jacksonh.AudioPlayer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;

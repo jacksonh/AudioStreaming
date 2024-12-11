@@ -10,7 +10,6 @@ import AppKit
 #endif
 
 import Foundation
-import AudioStreaming
 
 struct AudioPlaylist: Equatable, Identifiable {
     var id: String { title }
@@ -59,7 +58,7 @@ public class AudioPlayerModel {
 
 private let radioTracks: [AudioContent] = [.offradio, .enlefko, .pepper966, .kosmos, .kosmosJazz, .radiox]
 private let audioTracks: [AudioContent] = [.khruangbin, .piano, .optimized, .nonOptimized, .remoteWave, .local, .localWave, .loopBeatFlac]
-private let customStreams: [AudioContent] = [.custom("custom://sinwave")]
+private let customStreams: [AudioContent] = [.custom("custom://sinwave"), .custom("wav://test")]
 
 func audioTracksProvider() -> [AudioPlaylist] {
     [

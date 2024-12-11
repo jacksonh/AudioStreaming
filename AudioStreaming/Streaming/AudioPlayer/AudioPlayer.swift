@@ -200,6 +200,11 @@ open class AudioPlayer {
     /// - parameter format: An `AVAudioFormat` the format of this audio source
     public func play(source: CoreAudioStreamSource, entryId: String, format: AVAudioFormat) {
         let audioEntry = AudioEntry(source: source, entryId: AudioEntryId(id: entryId), outputAudioFormat: format)
+        
+        if source.audioFileHint == kAudioFileWAVEType {
+            setupInitialPCMProperties(entry: audioEntry)
+        }
+        
         play(audioEntry: audioEntry)
     }
 
@@ -830,11 +835,361 @@ open class AudioPlayer {
         }
         Logger.error("Error: %@", category: .generic, args: error.localizedDescription)
     }
+
+    func setupPCMProperties(entry: AudioEntry) {
+        // Set up basic PCM stream description
+        var streamDescription = AudioStreamBasicDescription()
+        streamDescription.mSampleRate = 44100
+        streamDescription.mFormatID = kAudioFormatLinearPCM
+        streamDescription.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked
+        streamDescription.mBitsPerChannel = 16
+        streamDescription.mChannelsPerFrame = 2
+        streamDescription.mFramesPerPacket = 1
+        streamDescription.mBytesPerFrame = 4    // (16 bits * 2 channels) / 8 bits per byte
+        streamDescription.mBytesPerPacket = 4   // same as mBytesPerFrame for PCM
+        streamDescription.mReserved = 0
+
+        let headerSize: UInt64 = 0 // 44  // WAV header size
+        let totalBytes = UInt64(entry.length)
+        let audioDataBytes = totalBytes - headerSize
+
+        // Calculate packet count (same as frame count for PCM)
+        let bytesPerFrame = UInt64(streamDescription.mBytesPerFrame)
+        let packetCount = audioDataBytes / bytesPerFrame
+
+        
+        // Set the audio format
+        entry.audioStreamFormat = streamDescription
+        entry.audioStreamState.processedDataFormat = true
+        
+        entry.audioStreamState.processedDataFormat = true
+        entry.audioStreamState.dataOffset = 0
+        
+        entry.audioStreamState.dataByteCount = UInt64(entry.length)
+        entry.audioStreamState.dataPacketOffset = 0
+        entry.audioStreamState.dataPacketCount = Double(packetCount)
+        // Mark as ready to produce packets
+        // entry.audioStreamState.readyToProducePackets = true
+        
+        print("""
+            PCM Properties Set:
+            Sample Rate: \(streamDescription.mSampleRate)
+            Channels: \(streamDescription.mChannelsPerFrame)
+            Bits per Channel: \(streamDescription.mBitsPerChannel)
+            Bytes per Frame: \(streamDescription.mBytesPerFrame)
+            Total Frames: \(packetCount)
+            Duration: \(Double(packetCount) / streamDescription.mSampleRate) seconds
+            """)
+    }
+
+    // Initial setup with basic format info
+    func setupInitialPCMProperties(entry: AudioEntry) {
+        var streamDescription = AudioStreamBasicDescription()
+        streamDescription.mSampleRate = 44100
+        streamDescription.mFormatID = kAudioFormatLinearPCM
+        streamDescription.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked
+        streamDescription.mBitsPerChannel = 32
+        streamDescription.mChannelsPerFrame = 2
+        streamDescription.mFramesPerPacket = 1
+        streamDescription.mBytesPerFrame =  8    // 16-bit (2 bytes) × 2 channels
+        streamDescription.mBytesPerPacket =  8   // Same as mBytesPerFrame for PCM
+
+        print("""
+        PCM Format Setup (matching input WAV):
+        Sample Rate: \(streamDescription.mSampleRate) Hz
+        Channels: \(streamDescription.mChannelsPerFrame)
+        Bits per Channel: \(streamDescription.mBitsPerChannel)
+        Bytes per Frame: \(streamDescription.mBytesPerFrame)
+        Format Flags: \(String(format: "0x%08X", streamDescription.mFormatFlags))
+        Sample Format: 16-bit Signed Integer PCM
+        """)
+
+        entry.audioStreamFormat = streamDescription
+        entry.audioStreamState.processedDataFormat = true
+    }
+
+    // Update running totals when new data arrives
+    func updatePCMProperties(entry: AudioEntry, newDataSize: Int) {
+        let bytesPerFrame = (entry.audioStreamFormat.mBitsPerChannel / 8) * entry.audioStreamFormat.mChannelsPerFrame
+        let newPacketCount = Double(newDataSize) / Double(bytesPerFrame)
+
+        entry.audioStreamState.dataByteCount = UInt64(newDataSize)
+        entry.audioStreamState.dataPacketCount = newPacketCount
+        
+        print("""
+            Updated PCM Data Info:
+            New data size: \(newDataSize) bytes
+            Bytes per frame: \(bytesPerFrame) (\(entry.audioStreamFormat.mBitsPerChannel/8) bytes/sample × \(entry.audioStreamFormat.mChannelsPerFrame) channels)
+            New frames: \(newPacketCount)
+            Total audio bytes: \(entry.audioStreamState.dataByteCount)
+            Total frames: \(entry.audioStreamState.dataPacketCount)
+            Duration: \(Double(entry.audioStreamState.dataPacketCount) / entry.audioStreamFormat.mSampleRate) seconds
+            """)
+    }
+
+    func setupAudioConverter(entry: AudioEntry) -> AudioConverterRef? {
+        // Source format (16-bit signed integer PCM MONO)
+        var inputFormat = AudioStreamBasicDescription()
+        inputFormat.mSampleRate = 44100
+        inputFormat.mFormatID = kAudioFormatLinearPCM
+        inputFormat.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked
+        inputFormat.mBitsPerChannel = 16
+        inputFormat.mChannelsPerFrame = 1  // MONO input
+        inputFormat.mFramesPerPacket = 1
+        inputFormat.mBytesPerFrame = 2    // (16 bits * 1 channel) / 8 bits per byte
+        inputFormat.mBytesPerPacket = 2
+
+        // Destination format (32-bit float PCM STEREO)
+        var outputFormat = AudioStreamBasicDescription()
+        outputFormat.mSampleRate = 44100
+        outputFormat.mFormatID = kAudioFormatLinearPCM
+        outputFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked
+        outputFormat.mBitsPerChannel = 32
+        outputFormat.mChannelsPerFrame = 2  // STEREO output
+        outputFormat.mFramesPerPacket = 1
+        outputFormat.mBytesPerFrame = 8    // (32 bits * 2 channels) / 8 bits per byte
+        outputFormat.mBytesPerPacket = 8
+
+        var converter: AudioConverterRef?
+        let status = AudioConverterNew(&inputFormat, &outputFormat, &converter)
+        
+        if status != noErr {
+            print("""
+            Converter creation failed:
+            Status: \(status)
+            Input format: \(inputFormat.mChannelsPerFrame) channels, \(inputFormat.mBytesPerFrame) bytes/frame
+            Output format: \(outputFormat.mChannelsPerFrame) channels, \(outputFormat.mBytesPerFrame) bytes/frame
+            """)
+            return nil
+        }
+        
+        print("""
+        Audio Converter Setup:
+        Mono -> Stereo conversion
+        Input: 16-bit Integer PCM Mono (\(inputFormat.mBytesPerFrame) bytes/frame)
+        Output: 32-bit Float PCM Stereo (\(outputFormat.mBytesPerFrame) bytes/frame)
+        """)
+        
+        return converter
+    }
+    
+    // Conversion function
+    func convertToFloat32(entry: AudioEntry, _ inputData: Data) -> Data? {
+        // Source format (16-bit signed integer PCM)
+         var inputFormat = AudioStreamBasicDescription()
+         inputFormat.mSampleRate = 44100
+         inputFormat.mFormatID = kAudioFormatLinearPCM
+         inputFormat.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked
+         inputFormat.mBitsPerChannel = 16
+         inputFormat.mChannelsPerFrame = 2
+         inputFormat.mFramesPerPacket = 1
+         inputFormat.mBytesPerFrame = 4    // (16 bits * 2 channels) / 8 bits per byte
+         inputFormat.mBytesPerPacket = 4   // same as mBytesPerFrame for PCM
+
+         // Destination format (32-bit float PCM)
+         var outputFormat = AudioStreamBasicDescription()
+         outputFormat.mSampleRate = 44100
+         outputFormat.mFormatID = kAudioFormatLinearPCM
+         outputFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked
+         outputFormat.mBitsPerChannel = 32
+         outputFormat.mChannelsPerFrame = 2
+         outputFormat.mFramesPerPacket = 1
+         outputFormat.mBytesPerFrame = 8    // (32 bits * 2 channels) / 8 bits per byte
+         outputFormat.mBytesPerPacket = 8   // same as mBytesPerFrame for PCM
+
+         // Debug print formats before conversion
+         print("\nInput Format:")
+         print("Sample Rate: \(inputFormat.mSampleRate)")
+         print("Channels: \(inputFormat.mChannelsPerFrame)")
+         print("Bits per Channel: \(inputFormat.mBitsPerChannel)")
+         print("Bytes per Frame: \(inputFormat.mBytesPerFrame)")
+         print("Format Flags: \(String(format: "0x%08X", inputFormat.mFormatFlags))")
+
+         var converter: AudioConverterRef?
+         let status = AudioConverterNew(&inputFormat, &outputFormat, &converter)
+         
+         if status != noErr {
+             print("Failed to create converter with status: \(status) (0x\(String(format: "%08X", status)))")
+             return nil
+         }
+            
+        
+        let framesPerBuffer = inputData.count / Int(inputFormat.mBytesPerFrame)
+        let outputBufferSize = framesPerBuffer * Int(outputFormat.mBytesPerFrame)
+        var outputBuffer = Data(count: outputBufferSize)
+        
+        // Setup input buffer
+        var inputBuffer = inputData
+        var inputBufferList = AudioBufferList()
+        inputBufferList.mNumberBuffers = 1
+        inputBufferList.mBuffers.mNumberChannels = inputFormat.mChannelsPerFrame
+        inputBufferList.mBuffers.mDataByteSize = UInt32(inputData.count)
+        inputBufferList.mBuffers.mData = UnsafeMutableRawPointer(mutating: (inputBuffer as NSData).bytes)
+        
+        // Setup output buffer
+        var outputBufferList = AudioBufferList()
+        outputBufferList.mNumberBuffers = 1
+        outputBufferList.mBuffers.mNumberChannels = outputFormat.mChannelsPerFrame
+        outputBufferList.mBuffers.mDataByteSize = UInt32(outputBufferSize)
+        outputBufferList.mBuffers.mData = UnsafeMutableRawPointer(mutating: (outputBuffer as NSData).bytes)
+
+        var outputFrames = UInt32(framesPerBuffer)
+        let conversionStatus = AudioConverterFillComplexBuffer(
+            converter!,
+            { (inAudioConverter, ioNumberDataPackets, ioData, outDataPacketDescription, inUserData) -> OSStatus in
+                if let inputBufferList = UnsafeMutablePointer<AudioBufferList>(OpaquePointer(inUserData)) {
+                    ioData.pointee = inputBufferList.pointee
+                    return noErr
+                }
+                return -1
+            },
+            &inputBufferList,
+            &outputFrames,
+            &outputBufferList,
+            nil
+        )
+        
+        guard conversionStatus == noErr else {
+            print("Conversion failed with status: \(conversionStatus)")
+            return nil
+        }
+        
+        return outputBuffer
+    }
+
+    private func processPCMData(_ entry: AudioEntry, _ data: Data) {
+        let bytesPerFrame = entry.audioStreamFormat.mBytesPerFrame
+        let framesInData = UInt32(data.count) / UInt32(bytesPerFrame)
+        
+        rendererContext.lock.lock()
+        
+        let frameCount = rendererContext.bufferContext.frameUsedCount
+        if frameCount == 0 {
+            rendererContext.bufferContext.frameStartIndex = 0
+        }
+        
+//        let availableFrames = rendererContext.bufferContext.totalFrameCount - frameCount
+//        guard availableFrames >= framesInData else {
+//            rendererContext.lock.unlock()
+//            Logger.debug("Buffer full, cannot append more PCM data", category: .generic)
+//            return
+//        }
+        
+        // Debug: Print buffer state
+        print("Buffer state before copy:")
+        print("Start index:", rendererContext.bufferContext.frameStartIndex)
+        print("Used count:", rendererContext.bufferContext.frameUsedCount)
+        
+        
+        let destOffset = Int(rendererContext.bufferContext.frameStartIndex + frameCount) * Int(bytesPerFrame)
+        let destPtr = rendererContext.audioBuffer.mData?.advanced(by: destOffset)
+        
+        print("DEST OFFSET \(destOffset) DEST PTR \(destPtr) BYTES COUNTL \(data.count)")
+        data.withUnsafeBytes { rawBufferPointer in
+            if let sourcePtr = rawBufferPointer.baseAddress {
+                destPtr?.copyMemory(from: sourcePtr, byteCount: data.count)
+            }
+        }
+        
+//        let totalBytes = frameCount * bytesPerFrame
+//        // Ensure we're copying complete frames
+//        data.withUnsafeBytes { rawBufferPointer in
+//            let int16Ptr = rawBufferPointer.bindMemory(to: Int16.self)
+//            for i in 0..<min(10, int16Ptr.count) {
+//                print("Sample \(i): \(int16Ptr[i])")
+//            }
+//        }
+        
+        print("Buffer state after copy:")
+        print("Used count:", rendererContext.bufferContext.frameUsedCount)
+        
+        updatePCMProperties(entry: entry, newDataSize: data.count)
+        
+        rendererContext.lock.unlock()
+        
+        // Use the same fillUsedFrames function for consistency
+        fillUsedFrames(framesCount: framesInData)
+
+        // Debug: Print final state
+
+        if rendererContext.waiting.value {
+            rendererContext.packetsSemaphore.signal()
+        }
+
+    }
+
+    @inline(__always)
+    private func fillUsedFrames(framesCount: UInt32) {
+        rendererContext.lock.lock()
+        rendererContext.bufferContext.frameUsedCount += framesCount
+        rendererContext.lock.unlock()
+
+        playerContext.audioReadingEntry?.lock.lock()
+        playerContext.audioReadingEntry?.framesState.queued += Int(framesCount)
+        playerContext.audioReadingEntry?.lock.unlock()
+    }
+
+    func debugPrintWAVHeader(data: Data) {
+        guard data.count >= 44 else {
+            print("Data too small to be a WAV header")
+            return
+        }
+        
+        // RIFF Header
+        let riffHeader = String(data: data[0..<4], encoding: .ascii) ?? ""
+        // Safe byte reading for file size
+        let fileSize = data[4..<8].withUnsafeBytes { ptr -> UInt32 in
+            var value: UInt32 = 0
+            memcpy(&value, ptr.baseAddress, 4)
+            return UInt32(littleEndian: value)  // WAV files are little-endian
+        }
+        let waveHeader = String(data: data[8..<12], encoding: .ascii) ?? ""
+        
+        print("\nWAV Header Analysis:")
+        print("RIFF Header:", riffHeader)
+        print("File Size:", fileSize)
+        print("WAVE Header:", waveHeader)
+        
+        // Look for chunks
+        var offset: Int = 12  // Skip RIFF header and WAV id
+        while offset < data.count - 8 {
+            let chunkID = String(data: data[offset..<offset+4], encoding: .ascii) ?? ""
+            // Safe byte reading for chunk size
+            let chunkSize = data[offset+4..<offset+8].withUnsafeBytes { ptr -> UInt32 in
+                var value: UInt32 = 0
+                memcpy(&value, ptr.baseAddress, 4)
+                return UInt32(littleEndian: value)  // WAV files are little-endian
+            }
+            
+            print("\nChunk Found at offset \(offset):")
+            print("  ID:", chunkID)
+            print("  Size:", chunkSize)
+            
+            if chunkID == "data" {
+                print("  >>> Data chunk starts at byte \(offset + 8) <<<")
+                // Print first few bytes of data for verification
+                let dataStart = offset + 8
+                let bytesToShow = min(16, data.count - dataStart)
+                print("  First \(bytesToShow) bytes of data:", data[dataStart..<dataStart+bytesToShow].map { String(format: "%02X", $0) }.joined(separator: " "))
+                break
+            }
+            
+            offset += 8 + Int(chunkSize)
+            if offset % 2 == 1 { offset += 1 }  // Padding byte if chunk size is odd
+        }
+    }
 }
 
 extension AudioPlayer: AudioStreamSourceDelegate {
     public func dataAvailable(source: CoreAudioStreamSource, data: Data) {
         guard let readingEntry = playerContext.audioReadingEntry, readingEntry.has(same: source) else {
+            return
+        }
+
+        if source.audioFileHint == kAudioFileWAVEType {
+            if let floatPCMData = convertToFloat32(entry: readingEntry, data) {
+                processPCMData(readingEntry, floatPCMData)
+            }
             return
         }
 
@@ -862,7 +1217,7 @@ extension AudioPlayer: AudioStreamSourceDelegate {
             }
         }
     }
-
+    
     public func errorOccurred(source: CoreAudioStreamSource, error: Error) {
         guard let entry = playerContext.audioReadingEntry, entry.has(same: source) else { return }
         raiseUnexpected(error: .networkError(.failure(error)))

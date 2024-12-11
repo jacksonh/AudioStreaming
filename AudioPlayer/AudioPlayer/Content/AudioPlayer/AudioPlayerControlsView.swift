@@ -255,6 +255,14 @@ extension AudioPlayerControls {
                     )!
                     audioPlayerService.play(source: source, entryId: track.url.absoluteString, format: audioFormat)
                     currentTrack = track
+                } else if track.url.scheme == "wav" {
+                    let player = audioPlayerService.player
+                    let source = createTestStreamSource(player: player)
+                    let audioFormat = AVAudioFormat(
+                        commonFormat: .pcmFormatFloat32, sampleRate: 44100, channels: 2, interleaved: false
+                    )!
+                    audioPlayerService.play(source: source, entryId: track.url.absoluteString, format: audioFormat)
+                    currentTrack = track
                 } else {
                     audioPlayerService.play(url: track.url)
                 }
@@ -263,6 +271,138 @@ extension AudioPlayerControls {
 
         func createStreamSource() -> CoreAudioStreamSource {
             return CustomStreamAudioSource(underlyingQueue: audioPlayerService.player.sourceQueue)
+        }
+        
+func generateSineWave(frequency: Double = 440.0, sampleRate: Int = 44100, duration: Double = 1.0) -> Data {
+    let numberOfSamples = Int(Double(sampleRate) * duration)
+    var data = Data(capacity: numberOfSamples * 2) // 2 bytes per sample for 16-bit
+    
+    // Generate a simple sine wave
+    for sampleIndex in 0 ..< numberOfSamples {
+        let time = Double(sampleIndex) / Double(sampleRate)
+        let amplitude = 0.5 // 50% amplitude to avoid clipping
+        let value = amplitude * sin(2.0 * .pi * frequency * time)
+        
+        // Convert to 16-bit integer
+        let sample = Int16(value * Double(Int16.max))
+        
+        // Append the bytes in little-endian order
+        data.append(UInt8(truncatingIfNeeded: sample))
+        data.append(UInt8(truncatingIfNeeded: sample >> 8))
+    }
+    
+            return data
+        }
+        
+        func createTestStreamSource(player: AudioPlayer) -> CoreAudioStreamSource {
+////            let path = Bundle(for: Self.self).path(forResource: "short-counting-to-five", ofType: "wav")!
+////            let data1 = (try? Data(NSData(contentsOfFile: path)))!
+////            let data2 = (try? Data(NSData(contentsOfFile: path)))!
+////            let data3 = (try? Data(NSData(contentsOfFile: path)))!
+            let path = Bundle.main.path(forResource: "short-counting-to-five-02", ofType: "wav")!
+            guard let wavData = NSData(contentsOfFile: path) else {
+                    fatalError("Could not read WAV file")
+                }
+            let header = Data(wavData)
+            let dataStart = debugPrintWAVHeader(data: header)
+            let offset = findWAVDataOffset(data: header)
+                
+           //  let dataOffset = findWAVDataOffset(data: Data(wavData))
+                // Skip WAV header
+                let headerSize = dataStart ?? 0
+                let pcmData = Data(bytes: wavData.bytes.advanced(by: headerSize),
+                                  count: wavData.length - headerSize)
+                
+                // Debug: Print first few frames of PCM data
+                debugPrintPCMFrames(pcmData, bytesPerFrame: 4, numFrames: 10)
+                
+
+          //   let lpcmData = generateSineWave(frequency: frequency, sampleRate: sampleRate, duration: duration)
+            return TestStreamAudioSource(player: player, type: kAudioFileWAVEType, buffers: [pcmData, /* lpcmData */], onReady: {
+                print("AUDIO STREAMING SET UP: ", player.duration)
+            })
+        }
+        
+        func debugPrintWAVHeader(data: Data) -> Int? {
+            guard data.count >= 44 else {
+                print("Data too small to be a WAV header")
+                return nil
+            }
+            
+            // RIFF Header
+            let riffHeader = String(data: data[0..<4], encoding: .ascii) ?? ""
+            // Safe byte reading for file size
+            let fileSize = data[4..<8].withUnsafeBytes { ptr -> UInt32 in
+                var value: UInt32 = 0
+                memcpy(&value, ptr.baseAddress, 4)
+                return UInt32(littleEndian: value)  // WAV files are little-endian
+            }
+            let waveHeader = String(data: data[8..<12], encoding: .ascii) ?? ""
+            
+            print("\nWAV Header Analysis:")
+            print("RIFF Header:", riffHeader)
+            print("File Size:", fileSize)
+            print("WAVE Header:", waveHeader)
+            
+            // Look for chunks
+            var offset: Int = 12  // Skip RIFF header and WAV id
+            while offset < data.count - 8 {
+                let chunkID = String(data: data[offset..<offset+4], encoding: .ascii) ?? ""
+                // Safe byte reading for chunk size
+                let chunkSize = data[offset+4..<offset+8].withUnsafeBytes { ptr -> UInt32 in
+                    var value: UInt32 = 0
+                    memcpy(&value, ptr.baseAddress, 4)
+                    return UInt32(littleEndian: value)  // WAV files are little-endian
+                }
+                
+                print("\nChunk Found at offset \(offset):")
+                print("  ID:", chunkID)
+                print("  Size:", chunkSize)
+                
+                if chunkID == "data" {
+                    print("  >>> Data chunk starts at byte \(offset + 8) <<<")
+                    // Print first few bytes of data for verification
+                    let dataStart = offset + 8
+                    let bytesToShow = min(1024 * 2, data.count - dataStart)
+                    print("  First \(bytesToShow) bytes of data:", data[dataStart..<dataStart+bytesToShow].map { String(format: "%02X", $0) }.joined(separator: " "))
+                    return offset + 8
+                }
+                
+                offset += 8 + Int(chunkSize)
+                if offset % 2 == 1 { offset += 1 }  // Padding byte if chunk size is odd
+            }
+            
+            return nil
+        }
+        
+        func findWAVDataOffset(data: Data) -> Int? {
+            var offset = 12 // Skip "RIFF" and "WAVE" headers
+            while offset < data.count - 8 {
+                let chunkID = String(data: data[offset..<offset+4], encoding: .ascii) ?? ""
+                let chunkSize = data[offset+4..<offset+8].withUnsafeBytes { ptr -> UInt32 in
+                    var value: UInt32 = 0
+                    memcpy(&value, ptr.baseAddress, 4)
+                    return UInt32(littleEndian: value)
+                }
+                
+                if chunkID == "data" {
+                    return offset + 8 // Return the start of the audio data
+                }
+                
+                offset += 8 + Int(chunkSize)
+                if offset % 2 == 1 { offset += 1 } // Account for padding
+            }
+            return nil
+        }
+
+        func debugPrintPCMFrames(_ data: Data, bytesPerFrame: Int, numFrames: Int) {
+            print("\nFirst \(numFrames) PCM frames:")
+            for i in 0..<min(numFrames * bytesPerFrame, data.count) / bytesPerFrame {
+                let offset = i * bytesPerFrame
+                let leftSample = Int16(data[offset]) + (Int16(data[offset + 1]) << 8)
+                let rightSample = Int16(data[offset + 2]) + (Int16(data[offset + 3]) << 8)
+                print("Frame \(i): L=\(leftSample) R=\(rightSample)")
+            }
         }
 
         func onTick() {
