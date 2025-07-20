@@ -469,6 +469,11 @@ open class AudioPlayer {
         reattachCustomNodes()
     }
 
+    public func attachToMixer(node: AVAudioNode) {
+        audioEngine.attach(node)
+        audioEngine.connect(node, to: audioEngine.mainMixerNode, format: nil)
+    }
+
     /// Detaches the given `AVAudioNode`s from the engine
     /// - Parameter node: An array of `AVAudioNode` instances
     public func detachCustomAttachedNodes() {
